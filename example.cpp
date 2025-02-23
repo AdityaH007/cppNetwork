@@ -1,85 +1,83 @@
-#include<iostream>
-#include<chrono>
+#include <iostream>
+#include <chrono>
 #ifdef _WIN32
-#define _WIN32_WINNT 0x0A00
+#define _WIN32_WINNT 0x0A00  // Target Windows 10 and above
 #endif
-
-
 #define ASIO_STANDALONE //not using boost
-
-
-#include<asio.hpp>
+#include <asio.hpp>
 #include <asio/ts/buffer.hpp>
 #include <asio/ts/internet.hpp>
 
+// Creating a large buffer for receiving network data
+std::vector<char> vBuffer(20 * 1024);
+
+// Recursive function to continuously read data from the socket
+void GrabData(asio::ip::tcp::socket& socket)
+{
+    // Set up an asynchronous read operation
+    socket.async_read_some(asio::buffer(vBuffer.data(), vBuffer.size()),
+        [&](std::error_code ec, std::size_t length)
+        {
+            if (!ec)
+            {
+                std::cout << "\n\nRead " << length << " bytes\n\n";
+                std::cout.write(vBuffer.data(), length);
+                // Recursively call GrabData to continue reading
+                GrabData(socket);
+            }
+            else
+            {
+                std::cout << "\nRead error: " << ec.message() << "\n";
+            }
+        }
+    );
+}
 
 int main()
 {
+    try
+    {
+        // Create a "Context" - essentially the platform specific interface
+        // Unique instance of asio, also hides platform specifics
+        asio::io_context context;
 
-	asio::error_code ec; //create a asio error code which could be reused later
+        // Create a resolver to turn DNS names into IP addresses
+        asio::ip::tcp::resolver resolver(context);
+        auto endpoints = resolver.resolve("example.com", "80");
 
-	//asio needs a space to perform stuff
-	//create a "Context" - essentially the platform specific interface
-	asio::io_context context; //unique instance of asio, also hides platform specifics
+        // Create a socket, the context will deliver the implementation
+        // This hooks into OS network drivers
+        asio::ip::tcp::socket socket(context);
 
-	//Get address of somehwere we wish to connect to
-	//asio::ip::tcp::endpoint endpoint(asio::ip::make_address("93.184.216.34", ec), 80);
+        // Attempt to connect to the resolved endpoints
+        asio::connect(socket, endpoints);
 
-	//create a resolver to turn dns names into IP addreesss
-	asio::ip::tcp::resolver resolver(context);
+        if (socket.is_open())
+        {
+            // Set up asynchronous read operation before sending request
+            GrabData(socket);
 
-	auto endpoints = resolver.resolve("amazon.in", "80");
+            // Prepare and send HTTP request
+            // Using proper HTTP/1.1 format with required headers
+            std::string sRequest =
+                "GET /index.html HTTP/1.1\r\n"
+                "Host: example.com\r\n"
+                "Connection: close\r\n\r\n";
 
-	//create a socket, the context will deliver the implementation
-	asio::ip::tcp::socket socket(context); //hook into OS network drivers
+            // Send data using ASIO buffer as a container
+            socket.write_some(asio::buffer(sRequest));
 
-	//attempt to connect
-	asio::connect(socket, endpoints, ec);
+            // Run the IO context - this is required for async operations
+            // This call will block until all async operations are complete
+            context.run();
+        }
+    }
+    catch (const std::exception& e)
+    {
+        // Handle any exceptions that might occur during execution
+        std::cerr << "Exception: " << e.what() << std::endl;
+        return 1;
+    }
 
-	if (!ec)
-	{
-		std::cout << "COnnected" << std::endl;
-
-	}
-	else
-	{
-		std::cout << "Failed" << ec.message() << std::endl;
-	}
-
-	if (socket.is_open())
-	{
-		std::string sRequest =
-			"GET /index.html HTTP/1.1\r\n"
-			"Host: amazon.in\r\n"
-			"Connection: close\r\n\r\n";
-
-		socket.write_some(asio::buffer(sRequest.data(), sRequest.size()), ec);
-		//send data, asio buffer is a container
-
-
-		//bruteforce delay
-		/*using namespace std::chrono_literals;
-		std::this_thread::sleep_for(800ms);*/
-
-		socket.wait(socket.wait_read);
-
-		size_t bytes = socket.available();
-		std::cout << "bytes avaiblable" << bytes << std::endl;
-
-		//read those from the socket
-		if (bytes >= 0)
-		{
-			std::vector<char> vBuffer(bytes);
-			socket.read_some(asio::buffer(vBuffer.data(), vBuffer.size()), ec);
-
-
-			for (auto c : vBuffer)
-			{
-				std::cout << c;
-			}
-		}
-	}
-
-	return 0;
+    return 0;
 }
-
