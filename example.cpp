@@ -28,7 +28,7 @@ int main()
 	//create a resolver to turn dns names into IP addreesss
 	asio::ip::tcp::resolver resolver(context);
 
-	auto endpoints = resolver.resolve("example.com", "80");
+	auto endpoints = resolver.resolve("amazon.in", "80");
 
 	//create a socket, the context will deliver the implementation
 	asio::ip::tcp::socket socket(context); //hook into OS network drivers
@@ -50,7 +50,7 @@ int main()
 	{
 		std::string sRequest =
 			"GET /index.html HTTP/1.1\r\n"
-			"Host: example.com\r\n"
+			"Host: amazon.in\r\n"
 			"Connection: close\r\n\r\n";
 
 		socket.write_some(asio::buffer(sRequest.data(), sRequest.size()), ec);
@@ -58,8 +58,10 @@ int main()
 
 
 		//bruteforce delay
-		using namespace std::chrono_literals;
-		std::this_thread::sleep_for(800ms);
+		/*using namespace std::chrono_literals;
+		std::this_thread::sleep_for(800ms);*/
+
+		socket.wait(socket.wait_read);
 
 		size_t bytes = socket.available();
 		std::cout << "bytes avaiblable" << bytes << std::endl;
