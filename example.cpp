@@ -35,6 +35,16 @@ void GrabData(asio::ip::tcp::socket& socket)
 
 int main()
 {
+    asio::error_code ec;  //asio error code
+
+    asio::io_context context2; //context
+
+    //give ome fake task to asio so that context dont finish
+    asio::io_context::work idleWork(context2);
+
+    std::thread thrContext = std::thread([&]() {context2.run(); });
+
+
     try
     {
         // Create a "Context" - essentially the platform specific interface
